@@ -20,7 +20,9 @@
  */
 #define MAX_INPUT 1024
 
-typedef enum RUNNING _running{IS_RUNNING = 0, NOT_RUNNING = -1};
+typedef enum RUNNING {
+    IS_RUNNING = 0, NOT_RUNNING = -1
+} _running;
 
 /**
  * @brief Handler for a File Descriptor.
