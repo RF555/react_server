@@ -62,19 +62,19 @@ struct _reactor {
  * @brief Generate a reactor as a _reactor structure.
  * @return Pointer to the new reactor.
  */
-void *generateReactor();
+void *generate_reactor();
 
 /**
  * @brief Start the reactor in a new thread.
  * @param reactor_ptr Pointer to an already generated reactor.
  */
-void startReactor(void *reactor_ptr);
+void start_reactor(void *reactor_ptr);
 
 /**
  * @brief Stop the reactor.
  * @param reactor_ptr Pointer to the reactor.
  */
-void stopReactor(void *reactor_ptr);
+void stop_reactor(void *reactor_ptr);
 
 
 /**
@@ -90,7 +90,7 @@ void add_fd(void *reactor_ptr, int fd, handler_func_ptr handler);
  * @brief Wait for the reactor.
  * @param reactor_ptr Pointer to the reactor.
  */
-void waitFor(void *reactor_ptr);
+void wait_for(void *reactor_ptr);
 
 /**
  * @brief Signal handler for SIGINT (ctl-C).
