@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Werror -std=c11 -g -pedantic
 SFLAGS = -shared
 TFLAGS = -pthread
-HFILE = st_reactor.h
+HFILE = reactor.h
 LIBFILE = st_reactor.so
 RM = rm -f
 

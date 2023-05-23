@@ -1,3 +1,22 @@
+/*
+ *  Operation Systems (OSs) Course Assignment 4
+ *  Reactor - A TCP server that handles multiple clients using a reactor.
+ *  Copyright (C) 2023  Roy Simanovich and Linor Ronen
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "reactor.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -7,271 +26,272 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "st_reactor.h"
-
-/**
- * @brief
- * @param reactor_ptr
- * @return
- */
-void *reactorRun(void *reactor_ptr) {
-    if (reactor_ptr == NULL) {
+void *reactorRun(void *react) {
+    if (react == NULL) {
         errno = EINVAL;
-        fprintf(stderr, "reactorRun() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "%s reactorRun() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
         return NULL;
     }
 
-    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
+    reactor_t_ptr reactor = (reactor_t_ptr) react;
 
-    while (reactor->is_running) {
-        size_t n_fds = 0, fd_count = 0;
-        fd_node_ptr curr_fd = reactor->src;
+    while (reactor->running) {
+        size_t size = 0, i = 0;
+        reactor_node_ptr curr = reactor->head;
 
-        while (curr_fd != NULL) { // count how many fd's the reacor has
-            ++n_fds;
-            curr_fd = curr_fd->next_fd;
+        while (curr != NULL) {
+            size++;
+            curr = curr->next;
         }
-        curr_fd = reactor->src;
 
-        // allocate enough memory for all the fds
-        reactor->fds_ptr = (poll_fd_ptr) calloc(n_fds, sizeof(poll_fd));
+        curr = reactor->head;
 
-        if (reactor->fds_ptr == NULL) {
-            fprintf(stderr, "reactorRun() failed: %s\n", strerror(errno));
+        reactor->fds = (pollfd_t_ptr) calloc(size, sizeof(pollfd_t));
+
+        if (reactor->fds == NULL) {
+            fprintf(stderr, "%s reactorRun() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
             return NULL;
         }
 
-        while (curr_fd != NULL) { // loop over all fds
-            (*(reactor->fds_ptr + fd_count)).fd = curr_fd->fd; // set the ith fd of the reactor to be the current fd
-            (*(reactor->fds_ptr + fd_count)).events = POLLIN; // set to alert when ready to recv() on this socket
-            curr_fd = curr_fd->next_fd;
-            ++fd_count;
+        while (curr != NULL) {
+            (*(reactor->fds + i)).fd = curr->fd;
+            (*(reactor->fds + i)).events = POLLIN;
+
+            curr = curr->next;
+            i++;
         }
 
-        int poll_count = poll(reactor->fds_ptr, fd_count, -1);
+        int ret = poll(reactor->fds, i, POLL_TIMEOUT);
 
-        if (poll_count < 0) { // poll failed
-            fprintf(stderr, "poll() failed: %s\n", strerror(errno));
-            free(reactor->fds_ptr);
-            reactor->fds_ptr = NULL;
+        if (ret < 0) {
+            fprintf(stderr, "%s poll() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+            free(reactor->fds);
+            reactor->fds = NULL;
             return NULL;
-        } else if (poll_count == 0) { // poll timed out
-            fprintf(stdout, "poll() timed out.\n");
-            free(reactor->fds_ptr);
-            reactor->fds_ptr = NULL;
+        } else if (ret == 0) {
+            fprintf(stdout, "%s poll() timed out.\n", C_PREFIX_WARNING);
+            free(reactor->fds);
+            reactor->fds = NULL;
             continue;
         }
 
-        // Run through the existing connections looking for data to read
-        for (size_t i = 0; i < fd_count; ++i) {
-            if ((*(reactor->fds_ptr + i)).revents & POLLIN) {// Check if fd is ready to read
-                curr_fd = reactor->src;
+        for (i = 0; i < size; ++i) {
+            if ((*(reactor->fds + i)).revents & POLLIN) {
+                reactor_node_ptr curr = reactor->head;
 
-                for (unsigned int j = 0; j < i; ++j) { // set curr_fd to be the ith fd
-                    curr_fd = curr_fd->next_fd;
-                }
+                for (unsigned int j = 0; j < i; ++j)
+                    curr = curr->next;
 
-                void *handler_func_poll = curr_fd->handler((*(reactor->fds_ptr + i)).fd,
-                                                           reactor); // set the handler function
+                void *handler_ret = curr->hdlr.handler((*(reactor->fds + i)).fd, reactor);
 
-                if (handler_func_poll == NULL && (*(reactor->fds_ptr + i)).fd != reactor->src->fd) {
-                    /* if unable to poll *AND* the fd is not the listening socket:
-                     * free and remove this fd_node */
-                    fd_node_ptr curr_node = reactor->src;
-                    fd_node_ptr prev_node = NULL;
+                if (handler_ret == NULL && (*(reactor->fds + i)).fd != reactor->head->fd) {
+                    reactor_node_ptr curr_node = reactor->head;
+                    reactor_node_ptr prev_node = NULL;
 
-                    while (curr_node != NULL && curr_node->fd != (*(reactor->fds_ptr + i)).fd) {
+                    while (curr_node != NULL && curr_node->fd != (*(reactor->fds + i)).fd) {
                         prev_node = curr_node;
-                        curr_node = curr_node->next_fd;
+                        curr_node = curr_node->next;
                     }
-                    prev_node->next_fd = curr_node->next_fd; // skip the current fd_node
+
+                    prev_node->next = curr_node->next;
+
                     free(curr_node);
                 }
-                continue;
-            } else if (((*(reactor->fds_ptr + i)).revents & POLLHUP
-                        || (*(reactor->fds_ptr + i)).revents & POLLNVAL
-                        || (*(reactor->fds_ptr + i)).revents & POLLERR)
-                       && ((*(reactor->fds_ptr + i)).fd != reactor->src->fd)) {
-                /* if one of these 3:
-                 *          1. Hung up
-                 *          2. Invalid polling request
-                 *          3. Error condition
-                 *    ---happened *AND* the current fd is not the src fd (listening socket)
-                 * ---> free and remove this fd_node */
-                fd_node_ptr curr_node = reactor->src;
-                fd_node_ptr prev_node = NULL;
 
-                while (curr_node != NULL && curr_node->fd != (*(reactor->fds_ptr + i)).fd) {
+                continue;
+            } else if (((*(reactor->fds + i)).revents & POLLHUP || (*(reactor->fds + i)).revents & POLLNVAL ||
+                        (*(reactor->fds + i)).revents & POLLERR) && (*(reactor->fds + i)).fd != reactor->head->fd) {
+                reactor_node_ptr curr_node = reactor->head;
+                reactor_node_ptr prev_node = NULL;
+
+                while (curr_node != NULL && curr_node->fd != (*(reactor->fds + i)).fd) {
                     prev_node = curr_node;
-                    curr_node = curr_node->next_fd;
+                    curr_node = curr_node->next;
                 }
-                prev_node->next_fd = curr_node->next_fd; // skip the current fd_node
+
+                prev_node->next = curr_node->next;
+
                 free(curr_node);
             }
         }
 
-        free(reactor->fds_ptr);
-        reactor->fds_ptr = NULL;
+        free(reactor->fds);
+        reactor->fds = NULL;
     }
-    fprintf(stdout, "Reactor thread finished.\n");
+
+    fprintf(stdout, "%s Reactor thread finished.\n", C_PREFIX_INFO);
+
     return reactor;
 }
-
 
 void *createReactor() {
-    reactor_struct_ptr reactor = NULL;
-    fprintf(stdout, "Called createReactor()\nCreating reactor...\n");
-    if ((reactor = (reactor_struct_ptr) malloc(sizeof(reactor_struct))) == NULL) {
-        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
+    reactor_t_ptr react = NULL;
+
+    fprintf(stdout, "%s Creating reactor...\n", C_PREFIX_INFO);
+
+    if ((react = (reactor_t_ptr) malloc(sizeof(reactor_t))) == NULL) {
+        fprintf(stderr, "%s malloc() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
         return NULL;
     }
-    reactor->my_thread = 0;
-    reactor->src = NULL;
-    reactor->fds_ptr = NULL;
-    reactor->is_running = NOT_RUNNING;
-    fprintf(stdout, "Reactor created.\n");
-    return reactor;
+
+    react->thread = 0;
+    react->head = NULL;
+    react->fds = NULL;
+    react->running = false;
+
+    fprintf(stdout, "%s Reactor created.\n", C_PREFIX_INFO);
+
+    return react;
 }
 
-
-void startReactor(void *reactor_ptr) {
-    if (reactor_ptr == NULL) {
-        fprintf(stderr, "startReactor() failed: %s\n", strerror(EINVAL));
+void startReactor(void *react) {
+    if (react == NULL) {
+        fprintf(stderr, "%s startReactor() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
         return;
     }
 
-    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
-    if (reactor->src == NULL) {
-        fprintf(stderr, "Tried to start a reactor without registered file descriptors.\n");
+    reactor_t_ptr reactor = (reactor_t_ptr) react;
+
+    if (reactor->head == NULL) {
+        fprintf(stderr, "%s Tried to start a reactor without registered file descriptors.\n", C_PREFIX_WARNING);
         return;
-    } else if (reactor->is_running == IS_RUNNING) {
-        fprintf(stderr, "Tried to start a reactor that's already running.\n");
+    } else if (reactor->running) {
+        fprintf(stderr, "%s Tried to start a reactor that's already running.\n", C_PREFIX_WARNING);
+        return;
+    }
+
+    fprintf(stdout, "%s Starting reactor thread...\n", C_PREFIX_INFO);
+
+    reactor->running = true;
+
+    int ret_val = pthread_create(&reactor->thread, NULL, reactorRun, react);
+
+    if (ret_val != 0) {
+        fprintf(stderr, "%s pthread_create() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        reactor->running = false;
+        reactor->thread = 0;
         return;
     }
 
-    fprintf(stdout, "Starting reactor thread...\n");
-
-    reactor->is_running = IS_RUNNING;
-
-    int created_thread = pthread_create(&reactor->my_thread, NULL, reactorRun, reactor_ptr);
-
-    if (created_thread != 0) {
-        fprintf(stderr, "pthread_create() failed: %s\n", strerror(created_thread));
-        reactor->is_running = NOT_RUNNING;
-        reactor->my_thread = 0;
-        return;
-    }
-    fprintf(stdout, "Reactor thread started.\n");
+    fprintf(stdout, "%s Reactor thread started.\n", C_PREFIX_INFO);
 }
 
-
-void stopReactor(void *reactor_ptr) {
-    if (reactor_ptr == NULL) {
-        fprintf(stderr, "stopReactor() failed: %s\n", strerror(EINVAL));
-        return;
-    }
-    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
-    void *temp_thread = NULL;
-
-    if (reactor->is_running == NOT_RUNNING) {
-        fprintf(stderr, "Tried to stop a reactor that's not currently running.\n");
-        return;
-    }
-    fprintf(stdout, "Stopping reactor thread gracefully...\n");
-
-    reactor->is_running = NOT_RUNNING;
-
-    int canceled_thread = pthread_cancel(reactor->my_thread);
-
-    if (canceled_thread != 0) {
-        fprintf(stderr, "pthread_cancel() failed: %s\n", strerror(canceled_thread));
+void stopReactor(void *react) {
+    if (react == NULL) {
+        fprintf(stderr, "%s stopReactor() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
         return;
     }
 
-    canceled_thread = pthread_join(reactor->my_thread, &temp_thread);
+    reactor_t_ptr reactor = (reactor_t_ptr) react;
+    void *ret = NULL;
 
-    if (canceled_thread != 0) {
-        fprintf(stderr, "pthread_join() failed: %s\n", strerror(canceled_thread));
-        return;
-    }
-    if (temp_thread == NULL) {
-        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
+    if (!reactor->running) {
+        fprintf(stderr, "%s Tried to stop a reactor that's not currently running.\n", C_PREFIX_WARNING);
         return;
     }
 
-    if (reactor->fds_ptr != NULL) {
-        free(reactor->fds_ptr);
-        reactor->fds_ptr = NULL;
+    fprintf(stdout, "%s Stopping reactor thread gracefully...\n", C_PREFIX_INFO);
+
+    reactor->running = false;
+
+    /*
+     * In case the thread is blocked on poll(), we ensure that the thread
+     * is cancelled by joining and detaching it.
+     * This prevents memory leaks.
+    */
+    int ret_val = pthread_cancel(reactor->thread);
+
+    if (ret_val != 0) {
+        fprintf(stderr, "%s pthread_cancel() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        return;
     }
 
-    reactor->my_thread = 0;
+    ret_val = pthread_join(reactor->thread, &ret);
 
-    fprintf(stdout, "Reactor thread stopped.\n");
+    if (ret_val != 0) {
+        fprintf(stderr, "%s pthread_join() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        return;
+    }
+
+    if (ret == NULL) {
+        fprintf(stderr, "%s Reactor thread fatal error: %s", C_PREFIX_ERROR, strerror(errno));
+        return;
+    }
+
+    // Free the reactor's file descriptors.
+    if (reactor->fds != NULL) {
+        free(reactor->fds);
+        reactor->fds = NULL;
+    }
+
+    // Reset reactor pthread.
+    reactor->thread = 0;
+
+    fprintf(stdout, "%s Reactor thread stopped.\n", C_PREFIX_INFO);
 }
 
-void addFd(void *reactor_ptr, int fd, handler_t handler) {
-    if (reactor_ptr == NULL || handler == NULL || fd < 0 || fcntl(fd, F_GETFL) == -1 || errno == EBADF) {
-        fprintf(stderr, "addFd() failed: %s\n", strerror(EINVAL));
-        return;
-    }
-    fprintf(stdout, "Adding file descriptor %d to the list.\n", fd);
-
-    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
-    fd_node_ptr new_node = (fd_node_ptr) malloc(sizeof(fd_node));
-    if (new_node == NULL) {
-        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
+void addFd(void *react, int fd, handler_t handler) {
+    if (react == NULL || handler == NULL || fd < 0 || fcntl(fd, F_GETFL) == -1 || errno == EBADF) {
+        fprintf(stderr, "%s addFd() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
         return;
     }
 
-    new_node->fd = fd;
-    new_node->handler = handler;
-    new_node->next_fd = NULL;
+    fprintf(stdout, "%s Adding file descriptor %d to the list.\n", C_PREFIX_INFO, fd);
 
-    if (reactor->src == NULL) {
-        reactor->src = new_node;
-    } else {
-        fd_node_ptr temp_node = reactor->src;
+    reactor_t_ptr reactor = (reactor_t_ptr) react;
+    reactor_node_ptr node = (reactor_node_ptr) malloc(sizeof(reactor_node));
 
-        while (temp_node->next_fd != NULL) {
-            temp_node = temp_node->next_fd;
-        }
-        temp_node->next_fd = new_node;
+    if (node == NULL) {
+        fprintf(stderr, "%s malloc() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        return;
     }
-    fprintf(stdout, "Successfuly added file descriptor %d to the list.\n", fd);
+
+    node->fd = fd;
+    node->hdlr.handler = handler;
+    node->next = NULL;
+
+    if (reactor->head == NULL)
+        reactor->head = node;
+
+    else {
+        reactor_node_ptr curr = reactor->head;
+
+        while (curr->next != NULL)
+            curr = curr->next;
+
+        curr->next = node;
+    }
+
+    fprintf(stdout, "%s Successfuly added file descriptor %d to the list, function handler address: %p.\n",
+            C_PREFIX_INFO, fd, node->hdlr.handler_ptr);
 }
 
-
-void WaitFor(void *reactor_ptr) {
-    if (reactor_ptr == NULL) {
-        fprintf(stderr, "WaitFor() failed: %s\n", strerror(EINVAL));
+void WaitFor(void *react) {
+    if (react == NULL) {
+        fprintf(stderr, "%s WaitFor() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
         return;
     }
 
-    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
-    void *temp_thread = NULL;
-    if (reactor->is_running == NOT_RUNNING) {
-        return;
-    }
+    reactor_t_ptr reactor = (reactor_t_ptr) react;
+    void *ret = NULL;
 
-    fprintf(stdout, "Reactor thread joined.\n");
+    if (!reactor->running)
+        return;
+
+    fprintf(stdout, "%s Reactor thread joined.\n", C_PREFIX_INFO);
     printf("1pthread_join() was successful!\n");
 
-    int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
 
+    int ret_val = pthread_join(reactor->thread, &ret);
     printf("2pthread_join() was successful!\n");
 
-    if (joined_thread != 0) {
-        fprintf(stderr, "pthread_join() failed: %s\n", strerror(joined_thread));
+    if (ret_val != 0) {
+        fprintf(stderr, "%s pthread_join() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
         return;
     }
-    if (temp_thread == NULL) {
-        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
-    }
+
+    if (ret == NULL)
+        fprintf(stderr, "%s Reactor thread fatal error: %s", C_PREFIX_ERROR, strerror(errno));
+
     printf("3pthread_join() was successful!\n");
 }
-
-
-
-
-
-
