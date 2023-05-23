@@ -33,33 +33,33 @@ typedef enum RUNNING {
  * @param reactor Pointer to the reactor.
  * @return Pointer of the return from the handler.
  */
-typedef void *(*handler_t)(int fd, void *react);
+typedef void *(*handler_t)(int fd, void *react_ptr);
 
 /**
  * @brief A node representing a file descriptor in the reactor.
  */
-typedef struct _reactor_node reactor_node, *reactor_node_ptr;
+typedef struct _fd_reactor_node fd_reactor_node, *fd_reactor_node_ptr;
 
 /**
  * @brief Reactor represented as a linked-list of fds.
  */
-typedef struct _reactor_t reactor_t, *reactor_t_ptr;
+typedef struct _reactor_struct reactor_struct, *reactor_struct_ptr;
 
 typedef struct pollfd pollfd_t, *pollfd_t_ptr; // Redefine 'struct pollfd' declared in 'poll.h'
 
 
-struct _reactor_node {
+struct _fd_reactor_node {
     int fd; // File Descriptor.
     handler_t handler; // Handler of the fd.
     void *handler_ptr; // Pointer to handler of the fd.
-    reactor_node_ptr next; // Pointer to the next fd node.
+    fd_reactor_node_ptr next_fd; // Pointer to the next fd node.
 };
 
-struct _reactor_t {
+struct _reactor_struct {
     pthread_t thread; // Thread the reactor runs on.
-    reactor_node_ptr head; // First fd of the reactor's list (always listen socket).
-    pollfd_t_ptr fds; // Pointer to the array of pollfd's.
-    bool running; // Enum indicating the reactors state.
+    fd_reactor_node_ptr src; // First fd of the reactor's list (always listen socket).
+    pollfd_t_ptr fds_ptr; // Pointer to the array of pollfd's.
+    bool is_running; // Enum indicating the reactors state.
 };
 
 
@@ -73,13 +73,13 @@ void *createReactor();
  * @brief Start the reactor in a new thread.
  * @param reactor_ptr Pointer to an already generated reactor.
  */
-void startReactor(void *react);
+void startReactor(void *react_ptr);
 
 /**
  * @brief Stop the reactor.
  * @param reactor_ptr Pointer to the reactor.
  */
-void stopReactor(void *react);
+void stopReactor(void *react_ptr);
 
 /**
  * @brief Add a file descriptor.
@@ -87,13 +87,13 @@ void stopReactor(void *react);
  * @param fd File Descriptor.
  * @param handler Pointer to the handler function.
  */
-void addFd(void *react, int fd, handler_t handler);
+void addFd(void *react_ptr, int fd, handler_t handler);
 
 /**
  * @brief Wait for the reactor.
  * @param reactor_ptr Pointer to the reactor.
  */
-void WaitFor(void *react);
+void WaitFor(void *react_ptr);
 
 
 /**
@@ -107,7 +107,7 @@ void signal_handler();
  * @param reactor_ptr Pointer to the reactor
  * @return Pointer to the reactor.
  */
-void *client_handler(int fd, void *react);
+void *client_handler(int fd, void *react_ptr);
 
 /**
  * @brief
@@ -115,6 +115,6 @@ void *client_handler(int fd, void *react);
  * @param reactor_ptr Pointer to the reactor
  * @return Pointer to the reactor.
  */
-void *server_handler(int fd, void *react);
+void *server_handler(int fd, void *react_ptr);
 
 #endif

@@ -8,11 +8,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-// The reactor pointer.
-void *reactor = NULL;
+/**
+ * @brief Pointer to the main reactor.
+ */
+void *main_reactor = NULL;
 
-// The number of clients connected to the server in its lifetime.
-uint32_t client_count = 0;
+/**
+ * @brief Count the clients number.
+ */
+int client_count = 0;
 
 // The total number of bytes received from clients in the server's lifetime.
 uint64_t total_bytes_received = 0;
@@ -22,7 +26,8 @@ uint64_t total_bytes_sent = 0;
 
 int main(void) {
     struct sockaddr_in server_addr;
-    int server_fd = -1, reuse = 1;
+    int server_fd = -1;
+    int reuse = 1;
 
     signal(SIGINT, signal_handler);
 
@@ -32,70 +37,71 @@ int main(void) {
     server_addr.sin_port = htons(DEFAULT_PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
         fprintf(stderr, "socket() failed: %s\n", strerror(errno));
-        return EXIT_FAILURE;
+        return 1;
     }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int)) < 0) {
         fprintf(stderr, "setsockopt(SO_REUSEADDR) failed: %s\n", strerror(errno));
         close(server_fd);
-        return EXIT_FAILURE;
+        return 1;
     }
 
     if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         fprintf(stderr, "bind() failed: %s\n", strerror(errno));
         close(server_fd);
-        return EXIT_FAILURE;
+        return 1;
     }
 
     if (listen(server_fd, MAX_CLIENT) < 0) {
         fprintf(stderr, "listen() failed: %s\n", strerror(errno));
         close(server_fd);
-        return EXIT_FAILURE;
+        return 1;
     }
 
     fprintf(stdout, "Server listening on port %d.\n", DEFAULT_PORT);
 
-    reactor = createReactor();
+    main_reactor = createReactor();
 
-    if (reactor == NULL) {
+    if (main_reactor == NULL) {
         fprintf(stderr, "createReactor() failed: %s\n", strerror(ENOSPC));
         close(server_fd);
-        return EXIT_FAILURE;
+        return 1;
     }
 
-    addFd(reactor, server_fd, server_handler);
+    addFd(main_reactor, server_fd, server_handler);
 
-    startReactor(reactor);
-    WaitFor(reactor);
+    startReactor(main_reactor);
+    WaitFor(main_reactor);
 
     signal_handler();
 
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 void signal_handler() {
     fprintf(stdout, "Server shutting down...\n");
 
-    if (reactor != NULL) {
-        if (((reactor_t_ptr) reactor)->running)
-            stopReactor(reactor);
+    if (main_reactor != NULL) {
+        if (((reactor_struct_ptr) main_reactor)->is_running)
+            stopReactor(main_reactor);
 
         fprintf(stdout, "Closing all sockets and freeing memory...\n");
 
-        reactor_node_ptr curr = ((reactor_t_ptr) reactor)->head;
-        reactor_node_ptr prev = NULL;
+        fd_reactor_node_ptr curr_node = ((reactor_struct_ptr) main_reactor)->src;
+        fd_reactor_node_ptr prev_node = NULL;
 
-        while (curr != NULL) {
-            prev = curr;
-            curr = curr->next;
+        while (curr_node != NULL) {
+            prev_node = curr_node;
+            curr_node = curr_node->next_fd;
 
-            close(prev->fd);
-            free(prev);
+            close(prev_node->fd);
+            free(prev_node);
         }
 
-        free(reactor);
+        free(main_reactor);
 
         fprintf(stdout, "Memory cleanup complete, may the force be with you.\n");
         fprintf(stdout, "Statistics:\n");
@@ -105,21 +111,21 @@ void signal_handler() {
         fprintf(stdout, "Total bytes sent in this session: %lu bytes (%lu KB).\n", total_bytes_sent,
                 total_bytes_sent / 1024);
     } else
-        fprintf(stdout, "Reactor wasn't created, no memory cleanup needed.\n");
+        fprintf(stdout, "main_Reactor wasn't created, no memory cleanup needed.\n");
 
-    exit(EXIT_SUCCESS);
+    exit(0);
 }
 
-void *client_handler(int fd, void *react) {
-    char *buf = (char *) calloc(MAX_BUFFER, sizeof(char));
+void *client_handler(int fd, void *react_ptr) {
+    char *buffer = (char *) calloc(MAX_BUFFER, sizeof(char));
 
-    if (buf == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr, "calloc() failed: %s\n", strerror(errno));
         close(fd);
         return NULL;
     }
 
-    int bytes_read = recv(fd, buf, MAX_BUFFER, 0);
+    int bytes_read = recv(fd, buffer, MAX_BUFFER, 0);
 
     if (bytes_read <= 0) {
         if (bytes_read < 0)
@@ -128,7 +134,7 @@ void *client_handler(int fd, void *react) {
         else
             fprintf(stdout, "Client %d disconnected.\n", fd);
 
-        free(buf);
+        free(buffer);
         close(fd);
         return NULL;
     }
@@ -137,43 +143,43 @@ void *client_handler(int fd, void *react) {
 
     // Make sure the buffer is null-terminated, so we can print it.
     if (bytes_read < MAX_BUFFER)
-        *(buf + bytes_read) = '\0';
+        *(buffer + bytes_read) = '\0';
 
     else
-        *(buf + MAX_BUFFER - 1) = '\0';
+        *(buffer + MAX_BUFFER - 1) = '\0';
 
     // Remove the arrow keys from the buffer, as they are not printable and mess up the output,
     // and replace them with spaces, so the rest of the message won't cut off.
     for (int i = 0; i < bytes_read - 3; i++) {
-        if ((*(buf + i) == 0x1b) && (*(buf + i + 1) == 0x5b) &&
-            (*(buf + i + 2) == 0x41 || *(buf + i + 2) == 0x42 || *(buf + i + 2) == 0x43 || *(buf + i + 2) == 0x44)) {
-            *(buf + i) = 0x20;
-            *(buf + i + 1) = 0x20;
-            *(buf + i + 2) = 0x20;
+        if ((*(buffer + i) == 0x1b) && (*(buffer + i + 1) == 0x5b) &&
+            (*(buffer + i + 2) == 0x41 || *(buffer + i + 2) == 0x42 || *(buffer + i + 2) == 0x43 || *(buffer + i + 2) == 0x44)) {
+            *(buffer + i) = 0x20;
+            *(buffer + i + 1) = 0x20;
+            *(buffer + i + 2) = 0x20;
 
             i += 2;
         }
     }
 
-    fprintf(stdout, "Client %d: %s\n", fd, buf);
+    fprintf(stdout, "Client %d: %s\n", fd, buffer);
 
     // Send the message back to all except the sender.
     // We don't need to send it back to the sender, as the sender already has the message.
     // We also don't need to send it back to the server listening socket, as it will result in an error.
     // We also know that the server listening socket is the first node in the list, so we can skip it,
     // and start from the second node, which can't be NULL, as we already know there is at least one client connected.
-    reactor_node_ptr curr = ((reactor_t_ptr) react)->head->next;
+    fd_reactor_node_ptr curr_node = ((reactor_struct_ptr) react_ptr)->src->next_fd;
 
-    while (curr != NULL) {
-        if (curr->fd != fd) {
-            int bytes_write = send(curr->fd, buf, bytes_read, 0);
+    while (curr_node != NULL) {
+        if (curr_node->fd != fd) {
+            int bytes_write = send(curr_node->fd, buffer, bytes_read, 0);
 
             if (bytes_write < 0) {
                 fprintf(stderr, "send() failed: %s\n", strerror(errno));
-                free(buf);
+                free(buffer);
                 return NULL;
             } else if (bytes_write == 0)
-                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n", curr->fd);
+                fprintf(stderr, "Client %d disconnected, expecting to be remove in next_fd poll() round.\n", curr_node->fd);
 
             else if (bytes_write < bytes_read)
                 fprintf(stderr, "send() sent less bytes than expected, check your network.\n");
@@ -182,19 +188,19 @@ void *client_handler(int fd, void *react) {
                 total_bytes_sent += bytes_write;
         }
 
-        curr = curr->next;
+        curr_node = curr_node->next_fd;
     }
 
-    free(buf);
+    free(buffer);
 
-    return react;
+    return react_ptr;
 }
 
-void *server_handler(int fd, void *react) {
+void *server_handler(int fd, void *react_ptr) {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
 
-    reactor_t_ptr reactor = (reactor_t_ptr) react;
+    reactor_struct_ptr reactor = (reactor_struct_ptr) react_ptr;
 
     // Sanity check.
     if (reactor == NULL) {
@@ -218,5 +224,5 @@ void *server_handler(int fd, void *react) {
     fprintf(stdout, "Client %s:%d connected, ID: %d\n", inet_ntoa(client_addr.sin_addr),
             ntohs(client_addr.sin_port), client_fd);
 
-    return react;
+    return react_ptr;
 }
