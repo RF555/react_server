@@ -64,7 +64,7 @@ void *reactorRun(void *react) {
                 for (unsigned int j = 0; j < i; ++j)
                     curr = curr->next;
 
-                void *handler_ret = curr->hdlr.handler((*(reactor->fds + i)).fd, reactor);
+                void *handler_ret = curr->handler((*(reactor->fds + i)).fd, reactor);
 
                 if (handler_ret == NULL && (*(reactor->fds + i)).fd != reactor->head->fd) {
                     reactor_node_ptr curr_node = reactor->head;
@@ -229,7 +229,8 @@ void addFd(void *react, int fd, handler_t handler) {
     }
 
     node->fd = fd;
-    node->hdlr.handler = handler;
+    node->handler = handler;
+    node->handler_ptr = &handler;
     node->next = NULL;
 
     if (reactor->head == NULL)
@@ -245,7 +246,7 @@ void addFd(void *react, int fd, handler_t handler) {
     }
 
     fprintf(stdout, "Successfuly added file descriptor %d to the list, function handler address: %p.\n",
-            fd, node->hdlr.handler_ptr);
+            fd, node->handler_ptr);
 }
 
 void WaitFor(void *react) {

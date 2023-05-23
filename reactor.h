@@ -50,10 +50,8 @@ typedef struct pollfd pollfd_t, *pollfd_t_ptr; // Redefine 'struct pollfd' decla
 
 struct _reactor_node {
     int fd; // File Descriptor.
-    union _hdlr_func_union {
     handler_t handler; // Handler of the fd.
     void *handler_ptr; // Pointer to handler of the fd.
-    } hdlr;
     reactor_node_ptr next; // Pointer to the next fd node.
 };
 
