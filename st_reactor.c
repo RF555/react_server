@@ -134,15 +134,137 @@ void *createReactor() {
 }
 
 
+void startReactor(void *reactor_ptr) {
+    if (reactor_ptr == NULL) {
+        fprintf(stderr, "startReactor() failed: %s\n", strerror(EINVAL));
+        return;
+    }
+
+    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
+    if (reactor->src == NULL) {
+        fprintf(stderr, "Tried to start a reactor without registered file descriptors.\n");
+        return;
+    } else if (reactor->is_running == IS_RUNNING) {
+        fprintf(stderr, "Tried to start a reactor that's already running.\n");
+        return;
+    }
+
+    fprintf(stdout, "Starting reactor thread...\n");
+
+    reactor->is_running = IS_RUNNING;
+
+    int created_thread = pthread_create(&reactor->my_thread, NULL, reactorRun, reactor_ptr);
+
+    if (created_thread != 0) {
+        fprintf(stderr, "pthread_create() failed: %s\n", strerror(ret_val));
+        reactor->is_running = NOT_RUNNING;
+        reactor->my_thread = 0;
+        return;
+    }
+    fprintf(stdout, "Reactor thread started.\n");
+}
 
 
+void stopReactor(void *reactor_ptr) {
+    if (reactor_ptr == NULL) {
+        fprintf(stderr, "stopReactor() failed: %s\n", strerror(EINVAL));
+        return;
+    }
+    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
+    void *temp_thread = NULL;
+
+    if (reactor->is_running == NOT_RUNNING) {
+        fprintf(stderr, "Tried to stop a reactor that's not currently running.\n");
+        return;
+    }
+    fprintf(stdout, "Stopping reactor thread gracefully...\n");
+
+    reactor->is_running = NOT_RUNNING;
+
+    int canceled_thread = pthread_cancel(reactor->my_thread);
+
+    if (canceled_thread != 0) {
+        fprintf(stderr, "pthread_cancel() failed: %s\n", strerror(ret_val));
+        return;
+    }
+
+    canceled_thread = pthread_join(reactor->my_thread, &temp_thread);
+
+    if (canceled_thread != 0) {
+        fprintf(stderr, "pthread_join() failed: %s\n", strerror(ret_val));
+        return;
+    }
+    if (temp_thread == NULL) {
+        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
+        return;
+    }
+
+    if (reactor->fds_ptr != NULL) {
+        free(reactor->fds_ptr);
+        reactor->fds_ptr = NULL;
+    }
+
+    reactor->my_thread = 0;
+
+    fprintf(stdout, "Reactor thread stopped.\n");
+}
+
+void addFd(void *reactor_ptr, int fd, handler_func_ptr handler) {
+    if (reactor_ptr == NULL || handler == NULL || fd < 0 || fcntl(fd, F_GETFL) == -1 || errno == EBADF) {
+        fprintf(stderr, "addFd() failed: %s\n", strerror(EINVAL));
+        return;
+    }
+    fprintf(stdout, "Adding file descriptor %d to the list.\n", fd);
+
+    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
+    fd_node_ptr new_node = (fd_node_ptr) malloc(sizeof(fd_node));
+    if (new_node == NULL) {
+        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
+        return;
+    }
+
+    new_node->fd = fd;
+    new_node->handler = handler;
+    new_node->next_fd = NULL;
+
+    if (reactor->src == NULL) {
+        reactor->src = new_node;
+    } else {
+        fd_node_ptr temp_node = reactor->src;
+        while (temp_node->next_fd != NULL) {
+            temp_node = temp_node->next_fd;
+        }
+        temp_node->next_fd = new_node;
+    }
+    fprintf(stdout, "Successfuly added file descriptor %d to the list, function handler address: %p.\n",
+            fd, &new_node->handler);
+}
 
 
+void WaitFor(void *reactor_ptr) {
+    if (reactor_ptr == NULL) {
+        fprintf(stderr, "WaitFor() failed: %s\n", strerror(EINVAL));
+        return;
+    }
 
+    reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
+    void *temp_thread = NULL;
+    if (reactor->is_running == NOT_RUNNING) {
+        return;
+    }
 
+    fprintf(stdout, "Reactor thread joined.\n");
+    int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
 
+    if (joined_thread != 0) {
+        fprintf(stderr, "pthread_join() failed: %s\n", strerror(ret_val));
+        return;
+    }
 
-
+    if (temp_thread == NULL) {
+        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
+    }
+}
 
 
 
