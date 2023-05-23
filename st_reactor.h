@@ -21,7 +21,7 @@
 #define MAX_INPUT 1024
 
 typedef enum RUNNING {
-    IS_RUNNING = 0, NOT_RUNNING = -1
+    YES = 0, NO = -1
 } _running;
 
 /**

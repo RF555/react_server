@@ -74,7 +74,7 @@ void signal_handler() {
     fprintf(stdout, "Server shutting down...\n(handling SIGINT)\n");
 
     if (reactor != NULL) { // need to free everything
-        if (((reactor_struct_ptr) reactor)->is_running == IS_RUNNING) {
+        if (((reactor_struct_ptr) reactor)->is_running == YES) {
             stopReactor(reactor);
         }
 

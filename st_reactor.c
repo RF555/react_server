@@ -23,7 +23,7 @@ void *reactorRun(void *reactor_ptr) {
 
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
 
-    while (reactor->is_running) {
+    while (reactor->is_running == YES) {
         size_t n_fds = 0, fd_count = 0;
         fd_node_ptr curr_fd = reactor->src;
 
@@ -128,7 +128,7 @@ void *createReactor() {
     reactor->my_thread = 0;
     reactor->src = NULL;
     reactor->fds_ptr = NULL;
-    reactor->is_running = NOT_RUNNING;
+    reactor->is_running = NO;
     fprintf(stdout, "Reactor created.\n");
     return reactor;
 }
@@ -144,20 +144,20 @@ void startReactor(void *reactor_ptr) {
     if (reactor->src == NULL) {
         fprintf(stderr, "Tried to start a reactor without registered file descriptors.\n");
         return;
-    } else if (reactor->is_running == IS_RUNNING) {
+    } else if (reactor->is_running == YES) {
         fprintf(stderr, "Tried to start a reactor that's already running.\n");
         return;
     }
 
     fprintf(stdout, "Starting reactor thread...\n");
 
-    reactor->is_running = IS_RUNNING;
+    reactor->is_running = YES;
 
     int created_thread = pthread_create(&reactor->my_thread, NULL, reactorRun, reactor_ptr);
 
     if (created_thread != 0) {
         fprintf(stderr, "pthread_create() failed: %s\n", strerror(created_thread));
-        reactor->is_running = NOT_RUNNING;
+        reactor->is_running = NO;
         reactor->my_thread = 0;
         return;
     }
@@ -173,13 +173,13 @@ void stopReactor(void *reactor_ptr) {
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
     void *temp_thread = NULL;
 
-    if (reactor->is_running == NOT_RUNNING) {
+    if (reactor->is_running == NO) {
         fprintf(stderr, "Tried to stop a reactor that's not currently running.\n");
         return;
     }
     fprintf(stdout, "Stopping reactor thread gracefully...\n");
 
-    reactor->is_running = NOT_RUNNING;
+    reactor->is_running = NO;
 
     int canceled_thread = pthread_cancel(reactor->my_thread);
 
@@ -249,7 +249,7 @@ void WaitFor(void *reactor_ptr) {
 
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
     void *temp_thread = NULL;
-    if (reactor->is_running == NOT_RUNNING) {
+    if (reactor->is_running == NO) {
         return;
     }
 
