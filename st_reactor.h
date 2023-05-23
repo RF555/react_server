@@ -30,7 +30,7 @@ typedef enum RUNNING {
  * @param reactor Pointer to the reactor.
  * @return Pointer of the return from the handler.
  */
-typedef void *(*handler_func_ptr)(int fd, void *reactor_ptr);
+typedef void *(*handler_t)(int fd, void *reactor_ptr);
 
 /**
  * @brief A node representing a file descriptor in the reactor.
@@ -47,7 +47,7 @@ typedef struct pollfd poll_fd, *poll_fd_ptr; // Redefine 'struct pollfd' declare
 
 struct _fd_node {
     int fd; // File Descriptor.
-    handler_func_ptr handler; // Handler of the fd.
+    handler_t handler; // Handler of the fd.
     void *handler_ptr; // Pointer to handler of the fd.
     fd_node_ptr next_fd; // Pointer to the next fd node.
 };
@@ -85,7 +85,7 @@ void stopReactor(void *reactor_ptr);
  * @param fd File Descriptor.
  * @param handler Pointer to the handler function.
  */
-void addFd(void *reactor_ptr, int fd, handler_func_ptr handler);
+void addFd(void *reactor_ptr, int fd, handler_t handler);
 
 
 /**
@@ -113,7 +113,7 @@ void *client_handler(int fd, void *reactor_ptr);
  * @param reactor_ptr Pointer to the reactor
  * @return Pointer to the reactor.
  */
-void *new_client(int fd, void *reactor_ptr);
+void *server_handler(int fd, void *reactor_ptr);
 
 
 #endif

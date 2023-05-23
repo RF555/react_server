@@ -17,7 +17,7 @@
 void *reactorRun(void *reactor_ptr) {
     if (reactor_ptr == NULL) {
         errno = EINVAL;
-        fprintf(stderr, "reactor_run() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "reactorRun() failed: %s\n", strerror(EINVAL));
         return NULL;
     }
 
@@ -209,7 +209,7 @@ void stopReactor(void *reactor_ptr) {
     fprintf(stdout, "Reactor thread stopped.\n");
 }
 
-void addFd(void *reactor_ptr, int fd, handler_func_ptr handler) {
+void addFd(void *reactor_ptr, int fd, handler_t handler) {
     if (reactor_ptr == NULL || handler == NULL || fd < 0 || fcntl(fd, F_GETFL) == -1 || errno == EBADF) {
         fprintf(stderr, "addFd() failed: %s\n", strerror(EINVAL));
         return;
@@ -231,6 +231,7 @@ void addFd(void *reactor_ptr, int fd, handler_func_ptr handler) {
         reactor->src = new_node;
     } else {
         fd_node_ptr temp_node = reactor->src;
+
         while (temp_node->next_fd != NULL) {
             temp_node = temp_node->next_fd;
         }
@@ -253,16 +254,20 @@ void WaitFor(void *reactor_ptr) {
     }
 
     fprintf(stdout, "Reactor thread joined.\n");
+    printf("1pthread_join() was successful!\n");
 
     int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
+
+    printf("2pthread_join() was successful!\n");
+
     if (joined_thread != 0) {
         fprintf(stderr, "pthread_join() failed: %s\n", strerror(joined_thread));
         return;
     }
-
     if (temp_thread == NULL) {
         fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
     }
+    printf("3pthread_join() was successful!\n");
 }
 
 

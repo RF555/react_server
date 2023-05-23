@@ -52,7 +52,7 @@ int main(void) {
         return -1;
     }
 
-    fprintf(stdout, "Server listening on port \033[0;32m%d\033[0;37m.\n", DEFAULT_PORT);
+    fprintf(stdout, "Server listening on port %d.\n", DEFAULT_PORT);
 
     reactor = createReactor();
 
@@ -62,7 +62,7 @@ int main(void) {
         return -1;
     }
 
-    addFd(reactor, server_fd, new_client);
+    addFd(reactor, server_fd, server_handler);
 
     startReactor(reactor);
     WaitFor(reactor);
@@ -106,12 +106,11 @@ void *client_handler(int fd, void *reactor_ptr) {
     int bytes_read = recv(fd, buffer, MAX_INPUT, 0);
 
     if (bytes_read <= 0) {
-        if (bytes_read < 0)
+        if (bytes_read < 0) {
             fprintf(stderr, "recv() failed: %s\n", strerror(errno));
-
-        else
+        } else {
             fprintf(stdout, "Client %d disconnected.\n", fd);
-
+        }
         free(buffer);
         close(fd);
         return NULL;
@@ -148,7 +147,8 @@ void *client_handler(int fd, void *reactor_ptr) {
                 free(buffer);
                 return NULL;
             } else if (bytes_write == 0) {
-                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n", curr_node->fd);
+                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n",
+                        curr_node->fd);
             } else if (bytes_write < bytes_read) {
                 fprintf(stderr, "send() sent less bytes than expected, check your network.\n");
             }
@@ -161,7 +161,7 @@ void *client_handler(int fd, void *reactor_ptr) {
 }
 
 
-void *new_client(int fd, void *reactor_ptr) {
+void *server_handler(int fd, void *reactor_ptr) {
     struct sockaddr_in client_address;
     socklen_t client_len = sizeof(client_address);
 
