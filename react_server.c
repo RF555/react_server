@@ -85,7 +85,7 @@ void signal_handler() {
     fprintf(stdout, "Server shutting down...\n");
 
     if (main_reactor != NULL) {
-        if (((reactor_struct_ptr) main_reactor)->is_running)
+        if (((reactor_struct_ptr) main_reactor)->is_running == YES)
             stopReactor(main_reactor);
 
         fprintf(stdout, "Closing all sockets and freeing memory...\n");
@@ -152,7 +152,8 @@ void *client_handler(int fd, void *react_ptr) {
     // and replace them with spaces, so the rest of the message won't cut off.
     for (int i = 0; i < bytes_read - 3; i++) {
         if ((*(buffer + i) == 0x1b) && (*(buffer + i + 1) == 0x5b) &&
-            (*(buffer + i + 2) == 0x41 || *(buffer + i + 2) == 0x42 || *(buffer + i + 2) == 0x43 || *(buffer + i + 2) == 0x44)) {
+            (*(buffer + i + 2) == 0x41 || *(buffer + i + 2) == 0x42 || *(buffer + i + 2) == 0x43 ||
+             *(buffer + i + 2) == 0x44)) {
             *(buffer + i) = 0x20;
             *(buffer + i + 1) = 0x20;
             *(buffer + i + 2) = 0x20;
@@ -179,7 +180,8 @@ void *client_handler(int fd, void *react_ptr) {
                 free(buffer);
                 return NULL;
             } else if (bytes_write == 0)
-                fprintf(stderr, "Client %d disconnected, expecting to be remove in next_fd poll() round.\n", curr_fd->fd);
+                fprintf(stderr, "Client %d disconnected, expecting to be remove in next_fd poll() round.\n",
+                        curr_fd->fd);
 
             else if (bytes_write < bytes_read)
                 fprintf(stderr, "send() sent less bytes than expected, check your network.\n");

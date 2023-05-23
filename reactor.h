@@ -24,7 +24,7 @@
 #define MAX_BUFFER 1024
 
 typedef enum RUNNING {
-    IS_RUNNING = 0, NOT_RUNNING = -1
+    YES = 0, NO = -1
 } _running;
 
 /**
@@ -59,7 +59,7 @@ struct _reactor_struct {
     pthread_t reactor_thread; // Thread the reactor runs on.
     fd_reactor_node_ptr src; // First fd of the reactor's list (always listen socket).
     pollfd_t_ptr fds_ptr; // Pointer to the array of pollfd's.
-    bool is_running; // Enum indicating the reactors state.
+    _running is_running; // Enum indicating the reactors state.
 };
 
 

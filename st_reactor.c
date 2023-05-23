@@ -17,7 +17,7 @@ void *reactorRun(void *react_ptr) {
 
     reactor_struct_ptr reactor = (reactor_struct_ptr) react_ptr;
 
-    while (reactor->is_running) {
+    while (reactor->is_running == YES) {
         size_t fds_size = 0;
         size_t fd_count = 0;
         fd_reactor_node_ptr curr_fd = reactor->src;
@@ -132,7 +132,7 @@ void *createReactor() {
     react_ptr->reactor_thread = 0;
     react_ptr->src = NULL;
     react_ptr->fds_ptr = NULL;
-    react_ptr->is_running = false;
+    react_ptr->is_running = NO;
 
     fprintf(stdout, "Reactor created.\n");
 
@@ -150,20 +150,20 @@ void startReactor(void *react_ptr) {
     if (reactor->src == NULL) {
         fprintf(stderr, "Tried to start a reactor without registered file descriptors.\n");
         return;
-    } else if (reactor->is_running) {
+    } else if (reactor->is_running == YES) {
         fprintf(stderr, "Tried to start a reactor that's already running.\n");
         return;
     }
 
     fprintf(stdout, "Starting reactor thread...\n");
 
-    reactor->is_running = true;
+    reactor->is_running = YES;
 
     int create_return_value = pthread_create(&reactor->reactor_thread, NULL, reactorRun, react_ptr);
 
     if (create_return_value != 0) {
         fprintf(stderr, "pthread_create() failed: %s\n", strerror(create_return_value));
-        reactor->is_running = false;
+        reactor->is_running = NO;
         reactor->reactor_thread = 0;
         return;
     }
@@ -180,14 +180,14 @@ void stopReactor(void *react_ptr) {
     reactor_struct_ptr reactor = (reactor_struct_ptr) react_ptr;
     void *return_value_ptr = NULL;
 
-    if (!reactor->is_running) {
+    if (reactor->is_running == NO) {
         fprintf(stderr, "Tried to stop a reactor that's not currently running.\n");
         return;
     }
 
     fprintf(stdout, "Stopping reactor thread gracefully...\n");
 
-    reactor->is_running = false;
+    reactor->is_running = NO;
 
     /*
      * In case the thread is blocked on poll(), we ensure that the thread
@@ -268,7 +268,7 @@ void WaitFor(void *react_ptr) {
     reactor_struct_ptr reactor = (reactor_struct_ptr) react_ptr;
     void *return_value_ptr = NULL;
 
-    if (!reactor->is_running)
+    if (reactor->is_running == NO)
         return;
 
     fprintf(stdout, "Reactor thread joined.\n");
