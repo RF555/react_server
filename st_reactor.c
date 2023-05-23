@@ -1,21 +1,3 @@
-/*
- *  Operation Systems (OSs) Course Assignment 4
- *  Reactor - A TCP server that handles multiple clients using a reactor.
- *  Copyright (C) 2023  Roy Simanovich and Linor Ronen
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 #include "reactor.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -29,7 +11,7 @@
 void *reactorRun(void *react) {
     if (react == NULL) {
         errno = EINVAL;
-        fprintf(stderr, "%s reactorRun() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
+        fprintf(stderr, "reactorRun() failed: %s\n", strerror(EINVAL));
         return NULL;
     }
 
@@ -49,7 +31,7 @@ void *reactorRun(void *react) {
         reactor->fds = (pollfd_t_ptr) calloc(size, sizeof(pollfd_t));
 
         if (reactor->fds == NULL) {
-            fprintf(stderr, "%s reactorRun() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+            fprintf(stderr, "reactorRun() failed: %s\n", strerror(errno));
             return NULL;
         }
 
@@ -61,15 +43,15 @@ void *reactorRun(void *react) {
             i++;
         }
 
-        int ret = poll(reactor->fds, i, POLL_TIMEOUT);
+        int ret = poll(reactor->fds, i, -1);
 
         if (ret < 0) {
-            fprintf(stderr, "%s poll() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+            fprintf(stderr, "poll() failed: %s\n", strerror(errno));
             free(reactor->fds);
             reactor->fds = NULL;
             return NULL;
         } else if (ret == 0) {
-            fprintf(stdout, "%s poll() timed out.\n", C_PREFIX_WARNING);
+            fprintf(stdout, "poll() timed out.\n");
             free(reactor->fds);
             reactor->fds = NULL;
             continue;
@@ -119,7 +101,7 @@ void *reactorRun(void *react) {
         reactor->fds = NULL;
     }
 
-    fprintf(stdout, "%s Reactor thread finished.\n", C_PREFIX_INFO);
+    fprintf(stdout, "Reactor thread finished.\n");
 
     return reactor;
 }
@@ -127,10 +109,10 @@ void *reactorRun(void *react) {
 void *createReactor() {
     reactor_t_ptr react = NULL;
 
-    fprintf(stdout, "%s Creating reactor...\n", C_PREFIX_INFO);
+    fprintf(stdout, "Creating reactor...\n");
 
     if ((react = (reactor_t_ptr) malloc(sizeof(reactor_t))) == NULL) {
-        fprintf(stderr, "%s malloc() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
         return NULL;
     }
 
@@ -139,46 +121,46 @@ void *createReactor() {
     react->fds = NULL;
     react->running = false;
 
-    fprintf(stdout, "%s Reactor created.\n", C_PREFIX_INFO);
+    fprintf(stdout, "Reactor created.\n");
 
     return react;
 }
 
 void startReactor(void *react) {
     if (react == NULL) {
-        fprintf(stderr, "%s startReactor() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
+        fprintf(stderr, "startReactor() failed: %s\n", strerror(EINVAL));
         return;
     }
 
     reactor_t_ptr reactor = (reactor_t_ptr) react;
 
     if (reactor->head == NULL) {
-        fprintf(stderr, "%s Tried to start a reactor without registered file descriptors.\n", C_PREFIX_WARNING);
+        fprintf(stderr, "Tried to start a reactor without registered file descriptors.\n");
         return;
     } else if (reactor->running) {
-        fprintf(stderr, "%s Tried to start a reactor that's already running.\n", C_PREFIX_WARNING);
+        fprintf(stderr, "Tried to start a reactor that's already running.\n");
         return;
     }
 
-    fprintf(stdout, "%s Starting reactor thread...\n", C_PREFIX_INFO);
+    fprintf(stdout, "Starting reactor thread...\n");
 
     reactor->running = true;
 
     int ret_val = pthread_create(&reactor->thread, NULL, reactorRun, react);
 
     if (ret_val != 0) {
-        fprintf(stderr, "%s pthread_create() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        fprintf(stderr, "pthread_create() failed: %s\n", strerror(ret_val));
         reactor->running = false;
         reactor->thread = 0;
         return;
     }
 
-    fprintf(stdout, "%s Reactor thread started.\n", C_PREFIX_INFO);
+    fprintf(stdout, "Reactor thread started.\n");
 }
 
 void stopReactor(void *react) {
     if (react == NULL) {
-        fprintf(stderr, "%s stopReactor() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
+        fprintf(stderr, "stopReactor() failed: %s\n", strerror(EINVAL));
         return;
     }
 
@@ -186,11 +168,11 @@ void stopReactor(void *react) {
     void *ret = NULL;
 
     if (!reactor->running) {
-        fprintf(stderr, "%s Tried to stop a reactor that's not currently running.\n", C_PREFIX_WARNING);
+        fprintf(stderr, "Tried to stop a reactor that's not currently running.\n");
         return;
     }
 
-    fprintf(stdout, "%s Stopping reactor thread gracefully...\n", C_PREFIX_INFO);
+    fprintf(stdout, "Stopping reactor thread gracefully...\n");
 
     reactor->running = false;
 
@@ -202,19 +184,19 @@ void stopReactor(void *react) {
     int ret_val = pthread_cancel(reactor->thread);
 
     if (ret_val != 0) {
-        fprintf(stderr, "%s pthread_cancel() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        fprintf(stderr, "pthread_cancel() failed: %s\n", strerror(ret_val));
         return;
     }
 
     ret_val = pthread_join(reactor->thread, &ret);
 
     if (ret_val != 0) {
-        fprintf(stderr, "%s pthread_join() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        fprintf(stderr, "pthread_join() failed: %s\n", strerror(ret_val));
         return;
     }
 
     if (ret == NULL) {
-        fprintf(stderr, "%s Reactor thread fatal error: %s", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
         return;
     }
 
@@ -227,22 +209,22 @@ void stopReactor(void *react) {
     // Reset reactor pthread.
     reactor->thread = 0;
 
-    fprintf(stdout, "%s Reactor thread stopped.\n", C_PREFIX_INFO);
+    fprintf(stdout, "Reactor thread stopped.\n");
 }
 
 void addFd(void *react, int fd, handler_t handler) {
     if (react == NULL || handler == NULL || fd < 0 || fcntl(fd, F_GETFL) == -1 || errno == EBADF) {
-        fprintf(stderr, "%s addFd() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
+        fprintf(stderr, "addFd() failed: %s\n", strerror(EINVAL));
         return;
     }
 
-    fprintf(stdout, "%s Adding file descriptor %d to the list.\n", C_PREFIX_INFO, fd);
+    fprintf(stdout, "Adding file descriptor %d to the list.\n", fd);
 
     reactor_t_ptr reactor = (reactor_t_ptr) react;
     reactor_node_ptr node = (reactor_node_ptr) malloc(sizeof(reactor_node));
 
     if (node == NULL) {
-        fprintf(stderr, "%s malloc() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
         return;
     }
 
@@ -262,13 +244,13 @@ void addFd(void *react, int fd, handler_t handler) {
         curr->next = node;
     }
 
-    fprintf(stdout, "%s Successfuly added file descriptor %d to the list, function handler address: %p.\n",
-            C_PREFIX_INFO, fd, node->hdlr.handler_ptr);
+    fprintf(stdout, "Successfuly added file descriptor %d to the list, function handler address: %p.\n",
+            fd, node->hdlr.handler_ptr);
 }
 
 void WaitFor(void *react) {
     if (react == NULL) {
-        fprintf(stderr, "%s WaitFor() failed: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
+        fprintf(stderr, "WaitFor() failed: %s\n", strerror(EINVAL));
         return;
     }
 
@@ -278,7 +260,7 @@ void WaitFor(void *react) {
     if (!reactor->running)
         return;
 
-    fprintf(stdout, "%s Reactor thread joined.\n", C_PREFIX_INFO);
+    fprintf(stdout, "Reactor thread joined.\n");
     printf("1pthread_join() was successful!\n");
 
 
@@ -286,12 +268,12 @@ void WaitFor(void *react) {
     printf("2pthread_join() was successful!\n");
 
     if (ret_val != 0) {
-        fprintf(stderr, "%s pthread_join() failed: %s\n", C_PREFIX_ERROR, strerror(ret_val));
+        fprintf(stderr, "pthread_join() failed: %s\n", strerror(ret_val));
         return;
     }
 
     if (ret == NULL)
-        fprintf(stderr, "%s Reactor thread fatal error: %s", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
 
     printf("3pthread_join() was successful!\n");
 }

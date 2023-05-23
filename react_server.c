@@ -1,21 +1,3 @@
-/*
- *  Operation Systems (OSs) Course Assignment 4
- *  Reactor - A TCP server that handles multiple clients using a reactor.
- *  Copyright (C) 2023  Roy Simanovich and Linor Ronen
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include "reactor.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -42,45 +24,43 @@ int main(void) {
     struct sockaddr_in server_addr;
     int server_fd = -1, reuse = 1;
 
-    fprintf(stdout, "%s", C_INFO_LICENSE);
-
     signal(SIGINT, signal_handler);
 
     memset(&server_addr, 0, sizeof(server_addr));
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT);
+    server_addr.sin_port = htons(DEFAULT_PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        fprintf(stderr, "%s socket() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "socket() failed: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int)) < 0) {
-        fprintf(stderr, "%s setsockopt(SO_REUSEADDR) failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "setsockopt(SO_REUSEADDR) failed: %s\n", strerror(errno));
         close(server_fd);
         return EXIT_FAILURE;
     }
 
     if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-        fprintf(stderr, "%s bind() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "bind() failed: %s\n", strerror(errno));
         close(server_fd);
         return EXIT_FAILURE;
     }
 
-    if (listen(server_fd, MAX_QUEUE) < 0) {
-        fprintf(stderr, "%s listen() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+    if (listen(server_fd, MAX_CLIENT) < 0) {
+        fprintf(stderr, "listen() failed: %s\n", strerror(errno));
         close(server_fd);
         return EXIT_FAILURE;
     }
 
-    fprintf(stdout, "%s Server listening on port \033[0;32m%d\033[0;37m.\n", C_PREFIX_INFO, SERVER_PORT);
+    fprintf(stdout, "Server listening on port %d.\n", DEFAULT_PORT);
 
     reactor = createReactor();
 
     if (reactor == NULL) {
-        fprintf(stderr, "%s createReactor() failed: %s\n", C_PREFIX_ERROR, strerror(ENOSPC));
+        fprintf(stderr, "createReactor() failed: %s\n", strerror(ENOSPC));
         close(server_fd);
         return EXIT_FAILURE;
     }
@@ -96,13 +76,13 @@ int main(void) {
 }
 
 void signal_handler() {
-    fprintf(stdout, "%s%s Server shutting down...\n", MACRO_CLEANUP, C_PREFIX_INFO);
+    fprintf(stdout, "Server shutting down...\n");
 
     if (reactor != NULL) {
         if (((reactor_t_ptr) reactor)->running)
             stopReactor(reactor);
 
-        fprintf(stdout, "%s Closing all sockets and freeing memory...\n", C_PREFIX_INFO);
+        fprintf(stdout, "Closing all sockets and freeing memory...\n");
 
         reactor_node_ptr curr = ((reactor_t_ptr) reactor)->head;
         reactor_node_ptr prev = NULL;
@@ -117,15 +97,15 @@ void signal_handler() {
 
         free(reactor);
 
-        fprintf(stdout, "%s Memory cleanup complete, may the force be with you.\n", C_PREFIX_INFO);
-        fprintf(stdout, "%s Statistics:\n", C_PREFIX_INFO);
-        fprintf(stdout, "%s Client count in this session: %d\n", C_PREFIX_INFO, client_count);
-        fprintf(stdout, "%s Total bytes received in this session: %lu bytes (%lu KB).\n", C_PREFIX_INFO,
+        fprintf(stdout, "Memory cleanup complete, may the force be with you.\n");
+        fprintf(stdout, "Statistics:\n");
+        fprintf(stdout, "Client count in this session: %d\n", client_count);
+        fprintf(stdout, "Total bytes received in this session: %lu bytes (%lu KB).\n",
                 total_bytes_received, total_bytes_received / 1024);
-        fprintf(stdout, "%s Total bytes sent in this session: %lu bytes (%lu KB).\n", C_PREFIX_INFO, total_bytes_sent,
+        fprintf(stdout, "Total bytes sent in this session: %lu bytes (%lu KB).\n", total_bytes_sent,
                 total_bytes_sent / 1024);
     } else
-        fprintf(stdout, "%s Reactor wasn't created, no memory cleanup needed.\n", C_PREFIX_INFO);
+        fprintf(stdout, "Reactor wasn't created, no memory cleanup needed.\n");
 
     exit(EXIT_SUCCESS);
 }
@@ -134,7 +114,7 @@ void *client_handler(int fd, void *react) {
     char *buf = (char *) calloc(MAX_BUFFER, sizeof(char));
 
     if (buf == NULL) {
-        fprintf(stderr, "%s calloc() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "calloc() failed: %s\n", strerror(errno));
         close(fd);
         return NULL;
     }
@@ -143,10 +123,10 @@ void *client_handler(int fd, void *react) {
 
     if (bytes_read <= 0) {
         if (bytes_read < 0)
-            fprintf(stderr, "%s recv() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+            fprintf(stderr, "recv() failed: %s\n", strerror(errno));
 
         else
-            fprintf(stdout, "%s Client %d disconnected.\n", C_PREFIX_WARNING, fd);
+            fprintf(stdout, "Client %d disconnected.\n", fd);
 
         free(buf);
         close(fd);
@@ -175,7 +155,7 @@ void *client_handler(int fd, void *react) {
         }
     }
 
-    fprintf(stdout, "%s Client %d: %s\n", C_PREFIX_MESSAGE, fd, buf);
+    fprintf(stdout, "Client %d: %s\n", fd, buf);
 
     // Send the message back to all except the sender.
     // We don't need to send it back to the sender, as the sender already has the message.
@@ -189,15 +169,14 @@ void *client_handler(int fd, void *react) {
             int bytes_write = send(curr->fd, buf, bytes_read, 0);
 
             if (bytes_write < 0) {
-                fprintf(stderr, "%s send() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+                fprintf(stderr, "send() failed: %s\n", strerror(errno));
                 free(buf);
                 return NULL;
             } else if (bytes_write == 0)
-                fprintf(stderr, "%s Client %d disconnected, expecting to be remove in next poll() round.\n",
-                        C_PREFIX_WARNING, curr->fd);
+                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n", curr->fd);
 
             else if (bytes_write < bytes_read)
-                fprintf(stderr, "%s send() sent less bytes than expected, check your network.\n", C_PREFIX_WARNING);
+                fprintf(stderr, "send() sent less bytes than expected, check your network.\n");
 
             else
                 total_bytes_sent += bytes_write;
@@ -219,7 +198,7 @@ void *server_handler(int fd, void *react) {
 
     // Sanity check.
     if (reactor == NULL) {
-        fprintf(stderr, "%s Server handler error: %s\n", C_PREFIX_ERROR, strerror(EINVAL));
+        fprintf(stderr, "Server handler error: %s\n", strerror(EINVAL));
         return NULL;
     }
 
@@ -227,7 +206,7 @@ void *server_handler(int fd, void *react) {
 
     // Sanity check.
     if (client_fd < 0) {
-        fprintf(stderr, "%s accept() failed: %s\n", C_PREFIX_ERROR, strerror(errno));
+        fprintf(stderr, "accept() failed: %s\n", strerror(errno));
         return NULL;
     }
 
@@ -236,7 +215,7 @@ void *server_handler(int fd, void *react) {
 
     client_count++;
 
-    fprintf(stdout, "%s Client %s:%d connected, ID: %d\n", C_PREFIX_INFO, inet_ntoa(client_addr.sin_addr),
+    fprintf(stdout, "Client %s:%d connected, ID: %d\n", inet_ntoa(client_addr.sin_addr),
             ntohs(client_addr.sin_port), client_fd);
 
     return react;
