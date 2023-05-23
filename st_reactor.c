@@ -27,14 +27,14 @@ void *reactorRun(void *reactor_ptr) {
         size_t n_fds = 0, fd_count = 0;
         fd_node_ptr curr_fd = reactor->src;
 
-        while (curr != NULL) { // count how many fd's the reacor has
+        while (curr_fd != NULL) { // count how many fd's the reacor has
             ++n_fds;
             curr_fd = curr_fd->next_fd;
         }
         curr_fd = reactor->src;
 
         // allocate enough memory for all the fds
-        reactor->fds_ptr = (poll_fd_ptr) calloc(size, sizeof(poll_fd));
+        reactor->fds_ptr = (poll_fd_ptr) calloc(n_fds, sizeof(poll_fd));
 
         if (reactor->fds_ptr == NULL) {
             fprintf(stderr, "reactorRun() failed: %s\n", strerror(errno));
@@ -63,7 +63,7 @@ void *reactorRun(void *reactor_ptr) {
         }
 
         // Run through the existing connections looking for data to read
-        for (int i = 0; i < fd_count; ++i) {
+        for (size_t i = 0; i < fd_count; ++i) {
             if ((*(reactor->fds_ptr + i)).revents & POLLIN) {// Check if fd is ready to read
                 curr_fd = reactor->src;
 
@@ -156,7 +156,7 @@ void startReactor(void *reactor_ptr) {
     int created_thread = pthread_create(&reactor->my_thread, NULL, reactorRun, reactor_ptr);
 
     if (created_thread != 0) {
-        fprintf(stderr, "pthread_create() failed: %s\n", strerror(ret_val));
+        fprintf(stderr, "pthread_create() failed: %s\n", strerror(created_thread));
         reactor->is_running = NOT_RUNNING;
         reactor->my_thread = 0;
         return;
@@ -184,14 +184,14 @@ void stopReactor(void *reactor_ptr) {
     int canceled_thread = pthread_cancel(reactor->my_thread);
 
     if (canceled_thread != 0) {
-        fprintf(stderr, "pthread_cancel() failed: %s\n", strerror(ret_val));
+        fprintf(stderr, "pthread_cancel() failed: %s\n", strerror(canceled_thread));
         return;
     }
 
     canceled_thread = pthread_join(reactor->my_thread, &temp_thread);
 
     if (canceled_thread != 0) {
-        fprintf(stderr, "pthread_join() failed: %s\n", strerror(ret_val));
+        fprintf(stderr, "pthread_join() failed: %s\n", strerror(canceled_thread));
         return;
     }
     if (temp_thread == NULL) {
@@ -236,8 +236,7 @@ void addFd(void *reactor_ptr, int fd, handler_func_ptr handler) {
         }
         temp_node->next_fd = new_node;
     }
-    fprintf(stdout, "Successfuly added file descriptor %d to the list, function handler address: %p.\n",
-            fd, &new_node->handler);
+    fprintf(stdout, "Successfuly added file descriptor %d to the list.\n", fd);
 }
 
 
@@ -254,10 +253,10 @@ void WaitFor(void *reactor_ptr) {
     }
 
     fprintf(stdout, "Reactor thread joined.\n");
-    int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
 
+    int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
     if (joined_thread != 0) {
-        fprintf(stderr, "pthread_join() failed: %s\n", strerror(ret_val));
+        fprintf(stderr, "pthread_join() failed: %s\n", strerror(joined_thread));
         return;
     }
 

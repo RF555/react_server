@@ -52,7 +52,7 @@ int main(void) {
         return -1;
     }
 
-    fprintf(stdout, "Server listening on port \033[0;32m%d\033[0;37m.\n", SERVER_PORT);
+    fprintf(stdout, "Server listening on port \033[0;32m%d\033[0;37m.\n", DEFAULT_PORT);
 
     reactor = createReactor();
 
@@ -103,7 +103,7 @@ void *client_handler(int fd, void *reactor_ptr) {
         return NULL;
     }
 
-    int bytes_read = recv(fd, buf, MAX_INPUT, 0);
+    int bytes_read = recv(fd, buffer, MAX_INPUT, 0);
 
     if (bytes_read <= 0) {
         if (bytes_read < 0)
@@ -142,13 +142,13 @@ void *client_handler(int fd, void *reactor_ptr) {
 
     while (curr_node != NULL) {
         if (curr_node->fd != fd) {
-            int bytes_write = send(curr->fd, buffer, bytes_read, 0);
+            int bytes_write = send(curr_node->fd, buffer, bytes_read, 0);
             if (bytes_write < 0) {
                 fprintf(stderr, "send() failed: %s\n", strerror(errno));
                 free(buffer);
                 return NULL;
             } else if (bytes_write == 0) {
-                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n", curr->fd);
+                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n", curr_node->fd);
             } else if (bytes_write < bytes_read) {
                 fprintf(stderr, "send() sent less bytes than expected, check your network.\n");
             }
@@ -180,7 +180,7 @@ void *new_client(int fd, void *reactor_ptr) {
     addFd(reactor, client_fd, client_handler);
 
     ++client_count;
-    fprintf(stdout, "Client %s:%d connected, ID: %d\n", inet_ntoa(client_addr.sin_addr),
+    fprintf(stdout, "Client %s:%d connected, ID: %d\n", inet_ntoa(client_address.sin_addr),
             ntohs(client_address.sin_port), client_fd);
 
     return reactor_ptr;
