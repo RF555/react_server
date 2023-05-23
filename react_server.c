@@ -90,15 +90,15 @@ void signal_handler() {
 
         fprintf(stdout, "Closing all sockets and freeing memory...\n");
 
-        fd_reactor_node_ptr curr_node = ((reactor_struct_ptr) main_reactor)->src;
-        fd_reactor_node_ptr prev_node = NULL;
+        fd_reactor_node_ptr curr_fd = ((reactor_struct_ptr) main_reactor)->src;
+        fd_reactor_node_ptr prev_fd = NULL;
 
-        while (curr_node != NULL) {
-            prev_node = curr_node;
-            curr_node = curr_node->next_fd;
+        while (curr_fd != NULL) {
+            prev_fd = curr_fd;
+            curr_fd = curr_fd->next_fd;
 
-            close(prev_node->fd);
-            free(prev_node);
+            close(prev_fd->fd);
+            free(prev_fd);
         }
 
         free(main_reactor);
@@ -168,18 +168,18 @@ void *client_handler(int fd, void *react_ptr) {
     // We also don't need to send it back to the server listening socket, as it will result in an error.
     // We also know that the server listening socket is the first node in the list, so we can skip it,
     // and start from the second node, which can't be NULL, as we already know there is at least one client connected.
-    fd_reactor_node_ptr curr_node = ((reactor_struct_ptr) react_ptr)->src->next_fd;
+    fd_reactor_node_ptr curr_fd = ((reactor_struct_ptr) react_ptr)->src->next_fd;
 
-    while (curr_node != NULL) {
-        if (curr_node->fd != fd) {
-            int bytes_write = send(curr_node->fd, buffer, bytes_read, 0);
+    while (curr_fd != NULL) {
+        if (curr_fd->fd != fd) {
+            int bytes_write = send(curr_fd->fd, buffer, bytes_read, 0);
 
             if (bytes_write < 0) {
                 fprintf(stderr, "send() failed: %s\n", strerror(errno));
                 free(buffer);
                 return NULL;
             } else if (bytes_write == 0)
-                fprintf(stderr, "Client %d disconnected, expecting to be remove in next_fd poll() round.\n", curr_node->fd);
+                fprintf(stderr, "Client %d disconnected, expecting to be remove in next_fd poll() round.\n", curr_fd->fd);
 
             else if (bytes_write < bytes_read)
                 fprintf(stderr, "send() sent less bytes than expected, check your network.\n");
@@ -188,7 +188,7 @@ void *client_handler(int fd, void *react_ptr) {
                 total_bytes_sent += bytes_write;
         }
 
-        curr_node = curr_node->next_fd;
+        curr_fd = curr_fd->next_fd;
     }
 
     free(buffer);
