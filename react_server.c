@@ -10,9 +10,12 @@
 #include "st_reactor.h"
 
 /**
- * @briefPointer to the reactor
+ * @brief Pointer to the reactor.
  */
 void *reactor = NULL;
+/**
+ * @brief Counts the clients number.
+ */
 int client_count = 0;
 
 int main(void) {
@@ -122,19 +125,6 @@ void *client_handler(int fd, void *reactor_ptr) {
         *(buffer + MAX_INPUT - 1) = '\0';
     }
 
-    for (int i = 0; i < bytes_read - 3; i++) {
-        if ((*(buffer + i) == 0x1b)
-            && (*(buffer + i + 1) == 0x5b)
-            && (*(buffer + i + 2) == 0x41
-                || *(buffer + i + 2) == 0x42
-                || *(buffer + i + 2) == 0x43
-                || *(buffer + i + 2) == 0x44)) {
-            *(buffer + i) = 0x20;
-            *(buffer + i + 1) = 0x20;
-            *(buffer + i + 2) = 0x20;
-            i += 2;
-        }
-    }
     fprintf(stdout, "Client %d: %s\n", fd, buffer);
 
     fd_node_ptr curr_node = ((reactor_struct_ptr) reactor_ptr)->src->next_fd;
@@ -185,14 +175,5 @@ void *server_handler(int fd, void *reactor_ptr) {
 
     return reactor_ptr;
 }
-
-
-
-
-
-
-
-
-
 
 

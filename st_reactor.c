@@ -249,29 +249,22 @@ void WaitFor(void *reactor_ptr) {
 
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
     void *temp_thread = NULL;
+
     if (reactor->is_running == NO) {
         return;
     }
 
     fprintf(stdout, "Reactor thread joined.\n");
-    printf("1pthread_join() was successful!\n");
 
     int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
-
-    printf("2pthread_join() was successful!\n");
 
     if (joined_thread != 0) {
         fprintf(stderr, "pthread_join() failed: %s\n", strerror(joined_thread));
         return;
     }
+
     if (temp_thread == NULL) {
         fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
     }
-    printf("3pthread_join() was successful!\n");
 }
-
-
-
-
-
 
