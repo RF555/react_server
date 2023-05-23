@@ -20,6 +20,10 @@
  */
 #define MAX_INPUT 1024
 
+#define ERROR_PRINT "  \x1b[1;31m"
+#define RESET_COLOR "\x1b[0m"
+
+
 typedef enum RUNNING {
     YES = 0, NO = -1
 } _running;

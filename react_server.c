@@ -33,24 +33,24 @@ int main(void) {
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
-        fprintf(stderr, "socket() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%ssocket() failed%s\n", ERROR_PRINT, RESET_COLOR);
         return -1;
     }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_flag, sizeof(int)) < 0) {
-        fprintf(stderr, "setsockopt(SO_REUSEADDR) failed: %s\n", strerror(errno));
+        fprintf(stderr, "%ssetsockopt() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         close(server_fd);
         return -1;
     }
 
     if (bind(server_fd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
-        fprintf(stderr, "bind() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%sbind() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         close(server_fd);
         return -1;
     }
 
     if (listen(server_fd, MAX_CLIENT) < 0) {
-        fprintf(stderr, "listen() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%slisten() failed%s\n", ERROR_PRINT, RESET_COLOR);
         close(server_fd);
         return -1;
     }
@@ -60,7 +60,7 @@ int main(void) {
     reactor = createReactor();
 
     if (reactor == NULL) {
-        fprintf(stderr, "createReactor() failed: %s\n", strerror(ENOSPC));
+        fprintf(stderr, "%screateReactor() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         close(server_fd);
         return -1;
     }
@@ -101,7 +101,7 @@ void signal_handler() {
 void *client_handler(int fd, void *reactor_ptr) {
     char *buffer = (char *) calloc(MAX_INPUT, sizeof(char));
     if (buffer == NULL) {
-        fprintf(stderr, "calloc() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%scalloc() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         close(fd);
         return NULL;
     }
@@ -110,7 +110,7 @@ void *client_handler(int fd, void *reactor_ptr) {
 
     if (bytes_read <= 0) {
         if (bytes_read < 0) {
-            fprintf(stderr, "recv() failed: %s\n", strerror(errno));
+            fprintf(stderr, "%srecv() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         } else {
             fprintf(stdout, "Client %d disconnected.\n", fd);
         }
@@ -124,23 +124,25 @@ void *client_handler(int fd, void *reactor_ptr) {
     } else {
         *(buffer + MAX_INPUT - 1) = '\0';
     }
+    char msg[MAX_INPUT];
+    sprintf(msg, "Client %d: %s", fd, buffer);
 
-    fprintf(stdout, "Client %d: %s\n", fd, buffer);
+    fprintf(stdout, "%s", msg);
 
     fd_node_ptr curr_node = ((reactor_struct_ptr) reactor_ptr)->src->next_fd;
 
     while (curr_node != NULL) {
         if (curr_node->fd != fd) {
-            int bytes_write = send(curr_node->fd, buffer, bytes_read, 0);
+            int bytes_write = send(curr_node->fd, msg, bytes_read + strlen(msg), 0);
             if (bytes_write < 0) {
-                fprintf(stderr, "send() failed: %s\n", strerror(errno));
+                fprintf(stderr, "%ssend() failed.%s\n", ERROR_PRINT, RESET_COLOR);
                 free(buffer);
                 return NULL;
             } else if (bytes_write == 0) {
-                fprintf(stderr, "Client %d disconnected, expecting to be remove in next poll() round.\n",
+                fprintf(stderr, "Client %d disconnected, will be removed next poll() round.\n",
                         curr_node->fd);
             } else if (bytes_write < bytes_read) {
-                fprintf(stderr, "send() sent less bytes than expected, check your network.\n");
+                fprintf(stderr, "%ssend() sent less bytes than it should have.%s\n", ERROR_PRINT, RESET_COLOR);
             }
         }
         curr_node = curr_node->next_fd;
@@ -163,14 +165,14 @@ void *server_handler(int fd, void *reactor_ptr) {
 
     int client_fd = accept(fd, (struct sockaddr *) &client_address, &client_len);
     if (client_fd < 0) {
-        fprintf(stderr, "accept() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%saccept() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return NULL;
     }
 
     addFd(reactor, client_fd, client_handler);
 
     ++client_count;
-    fprintf(stdout, "Client %s:%d connected, ID: %d\n", inet_ntoa(client_address.sin_addr),
+    fprintf(stdout, "New client connected, fd: %d\n", inet_ntoa(client_address.sin_addr),
             ntohs(client_address.sin_port), client_fd);
 
     return reactor_ptr;

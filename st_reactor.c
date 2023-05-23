@@ -15,9 +15,9 @@
  * @return
  */
 void *reactorRun(void *reactor_ptr) {
+    fprintf(stderr, "Called reactorRun()\n");
     if (reactor_ptr == NULL) {
-        errno = EINVAL;
-        fprintf(stderr, "reactorRun() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "%sreactorRun() failed: %s\n", ERROR_PRINT, RESET_COLOR);
         return NULL;
     }
 
@@ -37,7 +37,7 @@ void *reactorRun(void *reactor_ptr) {
         reactor->fds_ptr = (poll_fd_ptr) calloc(n_fds, sizeof(poll_fd));
 
         if (reactor->fds_ptr == NULL) {
-            fprintf(stderr, "reactorRun() failed: %s\n", strerror(errno));
+            fprintf(stderr, "%sreactorRun() failed.%s\n", ERROR_PRINT, RESET_COLOR);
             return NULL;
         }
 
@@ -51,12 +51,12 @@ void *reactorRun(void *reactor_ptr) {
         int poll_count = poll(reactor->fds_ptr, fd_count, -1);
 
         if (poll_count < 0) { // poll failed
-            fprintf(stderr, "poll() failed: %s\n", strerror(errno));
+            fprintf(stderr, "%spoll() failed.%s\n", ERROR_PRINT, RESET_COLOR);
             free(reactor->fds_ptr);
             reactor->fds_ptr = NULL;
             return NULL;
         } else if (poll_count == 0) { // poll timed out
-            fprintf(stdout, "poll() timed out.\n");
+            fprintf(stdout, "%spoll() timed out.%s\n", ERROR_PRINT, RESET_COLOR);
             free(reactor->fds_ptr);
             reactor->fds_ptr = NULL;
             continue;
@@ -119,83 +119,86 @@ void *reactorRun(void *reactor_ptr) {
 
 
 void *createReactor() {
+    fprintf(stdout, "Called createReactor()\n");
     reactor_struct_ptr reactor = NULL;
-    fprintf(stdout, "Called createReactor()\nCreating reactor...\n");
+    fprintf(stdout, "\tCreating reactor...\n");
     if ((reactor = (reactor_struct_ptr) malloc(sizeof(reactor_struct))) == NULL) {
-        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%smalloc() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return NULL;
     }
     reactor->my_thread = 0;
     reactor->src = NULL;
     reactor->fds_ptr = NULL;
     reactor->is_running = NO;
-    fprintf(stdout, "Reactor created.\n");
+    fprintf(stdout, "\tReactor created.\n");
     return reactor;
 }
 
 
 void startReactor(void *reactor_ptr) {
+    fprintf(stderr, "Called startReactor()\n");
     if (reactor_ptr == NULL) {
-        fprintf(stderr, "startReactor() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "%sstartReactor() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
     if (reactor->src == NULL) {
-        fprintf(stderr, "Tried to start a reactor without registered file descriptors.\n");
+        fprintf(stderr, "%sReactor has no file descriptor!%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     } else if (reactor->is_running == YES) {
-        fprintf(stderr, "Tried to start a reactor that's already running.\n");
+        fprintf(stderr, "%sReactor is already running!%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
-    fprintf(stdout, "Starting reactor thread...\n");
+    fprintf(stdout, "\tStarting reactor thread...\n");
 
     reactor->is_running = YES;
 
     int created_thread = pthread_create(&reactor->my_thread, NULL, reactorRun, reactor_ptr);
 
     if (created_thread != 0) {
-        fprintf(stderr, "pthread_create() failed: %s\n", strerror(created_thread));
+        fprintf(stderr, "%spthread_create() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         reactor->is_running = NO;
         reactor->my_thread = 0;
         return;
     }
-    fprintf(stdout, "Reactor thread started.\n");
+    fprintf(stdout, "\tReactor thread started.\n");
 }
 
 
 void stopReactor(void *reactor_ptr) {
+    fprintf(stderr, "Called stopReactor()\n");
     if (reactor_ptr == NULL) {
-        fprintf(stderr, "stopReactor() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "%sstopReactor() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
     void *temp_thread = NULL;
 
     if (reactor->is_running == NO) {
-        fprintf(stderr, "Tried to stop a reactor that's not currently running.\n");
+        fprintf(stderr, "%sReactor is not running!%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
-    fprintf(stdout, "Stopping reactor thread gracefully...\n");
+    fprintf(stdout, "\tStopping reactor thread...\n");
 
     reactor->is_running = NO;
 
     int canceled_thread = pthread_cancel(reactor->my_thread);
 
     if (canceled_thread != 0) {
-        fprintf(stderr, "pthread_cancel() failed: %s\n", strerror(canceled_thread));
+        fprintf(stderr, "%spthread_cancel() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
     canceled_thread = pthread_join(reactor->my_thread, &temp_thread);
 
     if (canceled_thread != 0) {
-        fprintf(stderr, "pthread_join() failed: %s\n", strerror(canceled_thread));
+        fprintf(stderr, "%spthread_join() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
     if (temp_thread == NULL) {
-        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
+        fprintf(stderr, "%sReactor thread error.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
@@ -206,20 +209,21 @@ void stopReactor(void *reactor_ptr) {
 
     reactor->my_thread = 0;
 
-    fprintf(stdout, "Reactor thread stopped.\n");
+    fprintf(stdout, "\tReactor thread stopped.\n");
 }
 
 void addFd(void *reactor_ptr, int fd, handler_t handler) {
+    fprintf(stderr, "Called addFd()\n");
     if (reactor_ptr == NULL || handler == NULL || fd < 0 || fcntl(fd, F_GETFL) == -1 || errno == EBADF) {
-        fprintf(stderr, "addFd() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "%saddFd() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
-    fprintf(stdout, "Adding file descriptor %d to the list.\n", fd);
+    fprintf(stdout, "\tAdding file descriptor %d.\n", fd);
 
     reactor_struct_ptr reactor = (reactor_struct_ptr) reactor_ptr;
     fd_node_ptr new_node = (fd_node_ptr) malloc(sizeof(fd_node));
     if (new_node == NULL) {
-        fprintf(stderr, "malloc() failed: %s\n", strerror(errno));
+        fprintf(stderr, "%smalloc() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
@@ -237,13 +241,14 @@ void addFd(void *reactor_ptr, int fd, handler_t handler) {
         }
         temp_node->next_fd = new_node;
     }
-    fprintf(stdout, "Successfuly added file descriptor %d to the list.\n", fd);
+    fprintf(stdout, "\tSuccessfully added file descriptor %d.\n", fd);
 }
 
 
 void WaitFor(void *reactor_ptr) {
+    fprintf(stderr, "Called WaitFor()\n");
     if (reactor_ptr == NULL) {
-        fprintf(stderr, "WaitFor() failed: %s\n", strerror(EINVAL));
+        fprintf(stderr, "%sWaitFor() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
@@ -254,17 +259,17 @@ void WaitFor(void *reactor_ptr) {
         return;
     }
 
-    fprintf(stdout, "Reactor thread joined.\n");
+    fprintf(stdout, "\tReactor thread joined.\n");
 
     int joined_thread = pthread_join(reactor->my_thread, &temp_thread);
 
     if (joined_thread != 0) {
-        fprintf(stderr, "pthread_join() failed: %s\n", strerror(joined_thread));
+        fprintf(stderr, "%spthread_join() failed.%s\n", ERROR_PRINT, RESET_COLOR);
         return;
     }
 
     if (temp_thread == NULL) {
-        fprintf(stderr, "Reactor thread fatal error: %s", strerror(errno));
+        fprintf(stderr, "%sReactor thread fatal error.%s", ERROR_PRINT, RESET_COLOR);
     }
 }
 
