@@ -172,8 +172,7 @@ void *server_handler(int fd, void *reactor_ptr) {
     addFd(reactor, client_fd, client_handler);
 
     ++client_count;
-    fprintf(stdout, "New client connected, fd: %d\n", inet_ntoa(client_address.sin_addr),
-            ntohs(client_address.sin_port), client_fd);
+    fprintf(stdout, "New client connected, fd: %d\n", client_fd);
 
     return reactor_ptr;
 }
